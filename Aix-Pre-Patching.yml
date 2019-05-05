@@ -1,0 +1,50 @@
+---
+- hosts: all
+  connection: paramiko
+  become: yes
+  become_user: root
+
+
+   
+  tasks:
+   
+    - name: Mounting NFS share on target hosts
+      shell: |
+        mkdir /patch_backup
+        nfso -p -o nfs_use_reserved_ports=1
+        mount -v nfs 10.180.18.100:/backup /patch_backup
+
+    - name: Collecting remote server details before patching
+      script: aix_pre_post_chk.sh pre
+
+      
+    - fetch:
+        src: /home/ansuser/prepatch.txt
+        dest: /ansible-dir/precheck-Backup/precheck-{{ inventory_hostname }}
+        flat: yes
+      tags: always
+
+    - name: Identifying the disk having alt clone
+      shell: |
+        lspv | grep -i altinst_rootvg | awk '{print $1}'
+      register: altdisk
+
+
+    - name: Removing old copy of alt disk
+      command: alt_disk_install -X
+
+    - name: Taking alt clone for patching
+      command: alt_disk_copy -P "all" -B -d {{ item }}
+      async: 14400
+      poll: 60
+      with_items:
+        - "{{ altdisk.stdout_lines }}"   
+   
+    
+    - name: Checking alt disk status
+      shell: |
+        lspv | grep -i altinst_rootvg | awk '{print $3}'
+      register: althd
+
+    - debug: msg="{{ althd.stdout }}"
+      

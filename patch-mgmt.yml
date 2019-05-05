@@ -1,0 +1,71 @@
+---
+- hosts: all
+  connection: paramiko
+  become: yes
+  become_user: root
+
+  tasks:
+
+    - name: moving existing repo files to backup folder
+      shell: |
+        mkdir /etc/yum.repos.d/backup
+        mv /etc/yum.repos.d/*.repo /etc/yum.repos.d/backup
+      tags: always
+
+    - name: subscription removal
+      redhat_subscription:
+        state: absent
+      tags: subscription-mgmt
+
+    - name: Setting subscription
+      lineinfile: path=/etc/yum/pluginconf.d/subscription-manager.conf regexp='^enabled' line='enabled=1'
+      when: ansible_distribution_major_version == "6" or ansible_distribution_major_version == "7"
+      tags: subscription-mgmt
+
+    - name: Install CA certificate for redhat Satellite 6
+      yum:
+       disable_gpg_check: yes
+       name: http://10.180.25.151/pub/katello-ca-consumer-vhwsatgp1.opaltelecom.com-1.0-1.noarch.rpm
+       state: present
+      when: ansible_distribution_major_version == "6" or ansible_distribution_major_version == "7"
+      tags: subscription-mgmt
+     
+    - name: Activation key -Rhel 6
+      redhat_subscription:
+       state: present
+       activationkey: "{{ RHEL6Key }}"
+       org_id: TALKTALK
+      when: ansible_distribution_major_version == "6"
+      tags: subscription-mgmt
+
+    - name: Activation key -Rhel 7
+      redhat_subscription:
+       state: present
+       activationkey: "{{ RHEL7Key }}"
+       org_id: TALKTALK
+      when: ansible_distribution_major_version == "7"
+      tags: subscription-mgmt
+
+    - name: Install Katello-Agent
+      yum:
+        name: katello-agent
+        state: present
+      when: ansible_distribution_major_version == "6" or ansible_distribution_major_version == "7"
+      tags: subscription-mgmt
+   
+    - name: Subscription status for each node.
+      command: hostname
+      command: subscription-manager identity
+      register: subscription
+
+    - debug: msg="{{ subscription.stdout }}"
+
+#    - mail:
+#        host: localhost
+#        port: 25
+#        from: "root@vhwansgp1.opaltelecom.com"
+#        to: "sanish.lawrence@cgi.com"
+#        subject: Largest files and Dirs
+#        body: "{{ disk.stdout }}"
+#      tags: subscription-mgmt
+

@@ -1,0 +1,78 @@
+---
+- hosts: all
+  connection: paramiko
+  become: yes
+  become_user: root
+
+
+   
+  tasks:
+    - name: collecting Remote server Details Before patching if it is a RHEL6 server
+      script: precheck6.sh
+      when: ansible_distribution_major_version == "6"
+      ignore_errors: true
+      tags: always
+
+    - name: collecting Remote server Details Before patching if it is a RHEL7 server
+      script: precheck7.sh
+      when: ansible_distribution_major_version == "7"
+      ignore_errors: true
+      tags: always
+
+    - name: script for post upadate validation
+      script: linux-fs-net-check.sh pre
+      ignore_errors: true
+      register: pre
+
+    - debug: msg="{{ pre.stdout | regex_replace('\r') | regex_replace('\n') }}"
+
+    
+
+    - fetch:
+        src: /home/ansuser/prepatch.txt
+        dest: /ansible-dir/precheck-Backup/precheck-{{ inventory_hostname }}
+        flat: yes
+      tags: always
+   
+    
+
+    - name: Updating packages on linux servers
+      command: yum update --exclude=http* -y
+     
+    - name: restart system to reboot to newest kernel
+      shell: "sleep 5 && reboot"
+      async: 1
+      poll: 0
+
+    - name: wait for 50 seconds
+      pause:
+        seconds: 50
+
+    - name: wait for the system to reboot
+      wait_for_connection:
+        delay: 60
+        timeout: 500
+
+    - name: check uptime for server
+      command: uptime
+      register: uptime
+
+    - debug: msg="{{ uptime.stdout }}"
+
+    - name: Unregistering PPC servers 
+      command: subscription-manager unregister
+      
+    - name: collecting Remote server Details After patching if it is a RHEL server
+      script: linux-fs-net-check.sh post
+      ignore_errors: true
+
+    - name: Postcheck status
+      shell: |
+        DATE=$(date +%m.%d.%Y)
+        HOST=$(hostname)
+        tail -1 /tmp/${HOST}.post-fs-net-chk.${DATE}.log
+      register: post
+
+    - debug: msg="{{ post.stdout }}"
+
+    

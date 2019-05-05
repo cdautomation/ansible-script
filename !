@@ -1,0 +1,19 @@
+---
+- hosts: all
+  connection: paramiko
+  become: yes
+  become_user: root
+
+
+  tasks:
+    - name: collecting Remote server Details Before patching if it is a RHEL6 server
+      script: yum.sh
+      tags: yum
+    
+    - fetch:
+        src: /tmp/yum.txt
+        dest: /ansible-dir/precheck-Backup/precheck-{{ inventory_hostname }}
+        flat: yes
+      tags: yum
+
+     

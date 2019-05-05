@@ -1,0 +1,46 @@
+---
+- hosts: all
+  connection: paramiko
+  become: yes
+  become_user: root
+
+
+   
+  tasks:
+   
+    - name: removing security fixes from AIX  servers before patching
+      script: Security-fix.sh
+
+ 
+    - name: Updating Aix version to n-1
+      command: install_all_updates -d /backup/rafficaix71 -Y -x
+
+    - name: Bosboot and bootlist
+      shell: |
+        lspv |grep " rootvg"|awk '{print "bosboot -ad",$1}' |sh
+        lspv |grep " rootvg"|awk '{print "bootlist -om normal",$1}' |sh
+   
+    - name: restart system to reboot to newest kernel
+      shell: "sleep 5 && shutdown -Fr now"
+      async: 1
+      poll: 0
+
+    - name: wait for 50 seconds
+      pause:
+        seconds: 50
+
+    - name: wait for the system to reboot
+      wait_for_connection:
+        delay: 60
+        timeout: 500
+
+    - name: check uptime for server
+      command: uptime
+      register: uptime
+
+    - debug: msg="{{ uptime.stdout }}"
+    
+
+    - name: Collecting remote server details after patching
+      script: aix_pre_post_chk.sh post
+      

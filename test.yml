@@ -1,0 +1,30 @@
+---
+- hosts: all
+  connection: paramiko
+  become: yes
+  become_user: root
+
+
+
+  tasks:
+
+
+    - name: collecting Remote server Details before patching if it is a RHEL server
+      script: linux-fs-net-check.sh pre
+      ignore_errors: true
+      register: pre
+
+    - debug: msg="{{ pre.stdout | regex_replace('\r') | regex_replace('\n') }}"
+
+    - name: collecting Remote server Details After patching if it is a RHEL server
+      script: linux-fs-net-check.sh post
+      ignore_errors: true
+   
+    - name: Postcheck status
+      shell: |
+        DATE=$(date +%m.%d.%Y)
+        HOST=$(hostname)
+        tail -1 /tmp/${HOST}.post-fs-net-chk.${DATE}.log
+      register: post
+    
+    - debug: msg="{{ post.stdout }}"
