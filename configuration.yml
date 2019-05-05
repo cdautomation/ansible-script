@@ -1,0 +1,28 @@
+---
+- hosts: all
+  connection: paramiko
+  become: yes
+  become_user: root
+
+
+
+  tasks:
+    - name: collecting Remote server Details Before patching if it is a RHEL6 server
+      script: precheck6.sh
+      when: ansible_distribution_major_version == "6"
+      ignore_errors: true
+      tags: always
+
+    - name: collecting Remote server Details Before patching if it is a RHEL7 server
+      script: precheck7.sh
+      when: ansible_distribution_major_version == "7"
+      ignore_errors: true
+      tags: always
+
+
+    - fetch:
+        src: /home/ansuser/configuration.txt
+        dest: /ansible-dir/precheck-Backup/configuration-{{ inventory_hostname }}
+        flat: yes
+      tags: always
+
