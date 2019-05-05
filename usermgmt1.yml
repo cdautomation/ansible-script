@@ -1,0 +1,105 @@
+---
+- hosts: all
+  connection: paramiko
+  remote_user: ansuser
+  become: yes
+  become_user: root
+
+  vars_files:
+    - /var/lib/awx/projects/useradd/groups.yml 
+
+  vars_prompt:
+    - name: "changenumber"
+      prompt: "what is the change number?"
+      private: no
+
+
+  tasks:
+    - local_action: mail
+                    from=root@localhost.opaltelecom.com
+                    subject='Ansible Playbook run-Usermgmt'
+                    body={{ changenumber }}
+                    to=root@localhost.opaltelecom.com
+                    charset=utf8
+      tags:
+        - always
+    
+
+    - name: Add group
+      group:
+         name: "{{ item.name }}"
+         state: present
+         gid: "{{ item.gid }}"
+      with_items: "{{ group }}"
+      tags: add_group
+
+    - name: Del group
+      group:
+         name: "{{ item.name }}"
+         state: absent
+      with_items: "{{ group }}"
+      tags: del_group
+
+    - name: Add user
+      user:
+        name: "{{ item.name }}"
+        state: present
+        uid: "{{ item.uid }}"
+        comment: "{{ item.comment }}"
+        password: "$6$Kd0/qPSgTrwobeLa$e.f8pQSLrf05.HeiOlBsgTLQ/67x6H6etHnAeO5Wd9bANV5c0hqzEeOgtv4OGVZKkecdL1r7/LUbXKIGbOOCf/"
+        update_password: on_create
+        createhome: yes
+        groups: "{{ item.groups }}"
+        append: yes
+      with_items: "{{ users }}"
+      tags: add_user
+    - name: Force new user to change password at first login
+      command: "chage -d 0 {{ item.name }}"
+      with_items: "{{ users }}" 
+      tags: add_user
+    
+    - name: Add new user as sudoers
+      lineinfile: dest=/etc/sudoers backup=yes state=present regexp="{{ item.regexp }}" insertafter=EOF line="{{ item.line }}"
+      with_items: "{{ users }}"
+      tags: sudo_user
+
+    - name: Add new group as sudoers
+      lineinfile: dest=/etc/sudoers backup=yes state=present regexp="{{ item.regexp }}" insertafter=EOF line="{{ item.line }}"
+      with_items: "{{ group }}"
+      tags: sudo_group
+ 
+    - name: Delete user from sudoers
+      lineinfile: dest=/etc/sudoers state=absent regexp="{{ item.regexp }}" line="{{ item.line }}"
+      with_items: "{{ users }}"
+      tags: sudodel_user
+
+    - name: delete group from sudoers
+      lineinfile: dest=/etc/sudoers state=absent regexp="{{ item.regexp }}" line="{{ item.line }}"
+      with_items: "{{ group }}"
+      tags: sudodel_group
+
+    
+    - name: SSH Key generation for users
+      user:
+        name: "{{ item.name }}"
+        generate_ssh_key: yes
+        ssh_key_bits: 4096
+        ssh_key_file: .ssh/id_rsa
+      with_items: "{{ users }}"
+      tags: ssh_key_generation
+
+    - name: Delete User
+      user:
+        name: "{{ item.name }}"
+        state: absent
+        remove: yes
+      with_items: "{{ users }}"
+      tags: del_user
+
+
+
+
+
+
+
+

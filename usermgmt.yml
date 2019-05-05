@@ -21,25 +21,21 @@
       with_items: "{{ group }}"
       tags: del_group
 
-
     - name: Creating encrypted passwd
       delegate_to: 10.180.25.151
-      command: openssl passwd "{{ item.passwd }}"
-      register: passwd
-      with_items: "{{ users }}"
-      when: ansible_distribution == "AIX"
-      tags: test
+      command: openssl passwd "{{ passwd }}"
+      register: out
+      tags: add_user
 
-    - debug:  
-        var: passwd.stdout_lines
-    
+
     - name: Add user for Linux
       user:
         name: "{{ item.name }}"
         state: present
 #        uid: "{{ item.uid }}"
         comment: "{{ item.comment }}"
-        password: "$6$rounds=656000$mysecretsalt$.EYdmIRSpi9YOLjhNfSk8PDMBu9QCebF.L.B9/wwuC8mO035ha9N2Dt10/MTjGVHuqOGwEHyfOTejdrcfAqKa."
+#        password: "$6$rounds=656000$mysecretsalt$.EYdmIRSpi9YOLjhNfSk8PDMBu9QCebF.L.B9/wwuC8mO035ha9N2Dt10/MTjGVHuqOGwEHyfOTejdrcfAqKa."
+        password: "{{ out.stdout }}"
         update_password: on_create
         createhome: yes
 #        groups: "{{ item.groups }}"
@@ -54,7 +50,8 @@
         state: present
 #        uid: "{{ item.uid }}"
         comment: "{{ item.comment }}"
-        password: BK/VYEijGY3q.
+        password: "{{ out.stdout }}"
+#        password: BK/VYEijGY3q.
         update_password: on_create
         createhome: yes
 #        groups: "{{ item.groups }}"
@@ -115,14 +112,21 @@
       user:
         name: "{{ item.name }}"
         state: absent
-        remove: yes
+        remove: no
       with_items: "{{ users }}"
       tags: del_user
+
+    - name: Creating encrypted passwd
+      delegate_to: 10.180.25.151
+      command: openssl passwd "{{ passwd }}"
+      register: pasw
+      tags: pwd_reset
+
 
     - name: Reset password for Linux user
       user:
         name: "{{ item.name }}"
-        password: "$6$rounds=656000$mysecretsalt$.EYdmIRSpi9YOLjhNfSk8PDMBu9QCebF.L.B9/wwuC8mO035ha9N2Dt10/MTjGVHuqOGwEHyfOTejdrcfAqKa."
+        password: "{{ pasw.stdout }}"
         update_password: always
       with_items: "{{ users }}"
       when: ansible_distribution == "RedHat" or ansible_distribution == "CentOS"
@@ -138,7 +142,7 @@
     - name: Reset password for Linux user
       user:
         name: "{{ item.name }}"
-        password: BK/VYEijGY3q.
+        password: "{{ pasw.stdout }}"
         update_password: always
       with_items: "{{ users }}"
       when: ansible_distribution == "AIX"

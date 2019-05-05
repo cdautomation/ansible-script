@@ -1,30 +1,159 @@
 ---
-- hosts: all
+- hosts: all  
   connection: paramiko
-  become: yes
   become_user: root
-
+  
 
 
   tasks:
+    - name: Add group
+      group:
+         name: "{{ item.name }}"
+         state: present
+         gid: "{{ item.gid }}"
+      with_items: "{{ group }}"
+      tags: add_group
+
+    - name: Del group
+      group:
+         name: "{{ item.name }}"
+         state: absent
+      with_items: "{{ group }}"
+      tags: del_group
 
 
-    - name: collecting Remote server Details before patching if it is a RHEL server
-      script: linux-fs-net-check.sh pre
-      ignore_errors: true
-      register: pre
 
-    - debug: msg="{{ pre.stdout | regex_replace('\r') | regex_replace('\n') }}"
+    - name: Creating encrypted passwd
+      delegate_to: 10.180.25.151
+      command: openssl passwd "{{ passwd }}"
+      register: out
+#      when: ansible_distribution == "AIX"
+      tags: add_user
 
-    - name: collecting Remote server Details After patching if it is a RHEL server
-      script: linux-fs-net-check.sh post
-      ignore_errors: true
-   
-    - name: Postcheck status
-      shell: |
-        DATE=$(date +%m.%d.%Y)
-        HOST=$(hostname)
-        tail -1 /tmp/${HOST}.post-fs-net-chk.${DATE}.log
-      register: post
+    - debug: msg="{{ out }}"
+      tags: add_user
+ 
     
-    - debug: msg="{{ post.stdout }}"
+    - name: Add user for Linux
+      user:
+        name: "{{ item.name }}"
+        state: present
+#        uid: "{{ item.uid }}"
+        comment: "{{ item.comment }}"
+#        password: "$6$rounds=656000$mysecretsalt$.EYdmIRSpi9YOLjhNfSk8PDMBu9QCebF.L.B9/wwuC8mO035ha9N2Dt10/MTjGVHuqOGwEHyfOTejdrcfAqKa."
+        password: "{{ out.stdout }}"
+        update_password: on_create
+        createhome: yes
+#        groups: "{{ item.groups }}"
+        append: yes
+      with_items: "{{ users }}"
+      when: ansible_distribution == "RedHat" or ansible_distribution == "CentOS"
+      tags: add_user
+   
+    - name: Add user for Aix
+      user:
+        name: "{{ item.name }}"
+        state: present
+#        uid: "{{ item.uid }}"
+        comment: "{{ item.comment }}"
+#        password: BK/VYEijGY3q.
+        password: "{{ out.stdout }}"
+        update_password: on_create
+        createhome: yes
+#        groups: "{{ item.groups }}"
+        append: yes
+      with_items: "{{ users }}"
+      when: ansible_distribution == "AIX"
+      tags: add_user
+ 
+    - name: Force new user to change password at first login
+      command: "chage -d 0 {{ item.name }}"
+      with_items: "{{ users }}"
+      when: ansible_distribution == "RedHat" or ansible_distribution == "CentOS"
+      tags: add_user
+
+    - name: Force new user to change password at first login
+      command: "pwdadm -f ADMCHG {{ item.name }}"
+      with_items: "{{ users }}"
+      when: ansible_distribution == "AIX"
+      tags: add_user
+    
+    - name: Add new user as sudoers
+      lineinfile: dest=/etc/sudoers backup=yes state=present regexp="{{ item.regexp }}" insertafter=EOF line="{{ item.line }}"
+      with_items: "{{ users }}"
+      tags: sudo_user
+
+    - name: Add new user as sudoers
+      command: cp /etc/sudoers /etc/sudoers-backup
+      when: ansible_distribution == "AIX"
+      tags: sudo_user
+
+
+    - name: Add new group as sudoers
+      lineinfile: dest=/etc/sudoers backup=yes state=present regexp="{{ item.regexp }}" insertafter=EOF line="{{ item.line }}"
+      with_items: "{{ group }}"
+      tags: sudo_group
+ 
+    - name: Delete user from sudoers
+      lineinfile: dest=/etc/sudoers state=absent regexp="{{ item.regexp }}" line="{{ item.line }}"
+      with_items: "{{ users }}"
+      tags: sudodel_user
+
+    - name: delete group from sudoers
+      lineinfile: dest=/etc/sudoers state=absent regexp="{{ item.regexp }}" line="{{ item.line }}"
+      with_items: "{{ group }}"
+      tags: sudodel_group
+
+    
+    - name: SSH Key generation for users
+      user:
+        name: "{{ item.name }}"
+        generate_ssh_key: yes
+        ssh_key_bits: 4096
+        ssh_key_file: .ssh/id_rsa
+      with_items: "{{ users }}"
+      tags: ssh_key_generation
+
+    - name: Delete User
+      user:
+        name: "{{ item.name }}"
+        state: absent
+        remove: yes
+      with_items: "{{ users }}"
+      tags: del_user
+
+    - name: Reset password for Linux user
+      user:
+        name: "{{ item.name }}"
+        password: "$6$rounds=656000$mysecretsalt$.EYdmIRSpi9YOLjhNfSk8PDMBu9QCebF.L.B9/wwuC8mO035ha9N2Dt10/MTjGVHuqOGwEHyfOTejdrcfAqKa."
+        update_password: always
+      with_items: "{{ users }}"
+      when: ansible_distribution == "RedHat" or ansible_distribution == "CentOS"
+      tags: pwd_reset
+ 
+    - name: Force new user to change password at first login
+      command: "chage -d 0 {{ item.name }}"
+      with_items: "{{ users }}"
+      when: ansible_distribution == "RedHat" or ansible_distribution == "CentOS"
+      tags: pwd_reset
+
+
+    - name: Reset password for Linux user
+      user:
+        name: "{{ item.name }}"
+        password: BK/VYEijGY3q.
+        update_password: always
+      with_items: "{{ users }}"
+      when: ansible_distribution == "AIX"
+      tags: pwd_reset
+
+    - name: Force new user to change password at first login
+      command: "pwdadm -f ADMCHG {{ item.name }}"
+      with_items: "{{ users }}"
+      when: ansible_distribution == "AIX"
+      tags: pwd_reset
+
+
+
+
+

@@ -1,0 +1,83 @@
+---
+- hosts: "{{ hosts }}"
+  connection: paramiko
+  become: yes
+  become_user: root
+
+
+  tasks:
+    - name: Add group
+      group:
+         name: "{{ name }}"
+         state: present
+         gid: "{{ gid }}"
+      tags: add_group
+
+    - name: Del group
+      group:
+         name: "{{ name }}"
+         state: absent
+      tags: del_group
+
+    - name: Add user
+      user:
+        name: "{{ name }}"
+        state: present
+        uid: "{{ uid }}"
+        comment: "{{ comment }}"
+        password: "$6$m5IJ9NHbWzg1/X8V$n4Hb773QThrg2Q5gsfGKxgco801RKDtcx5kqSVRaCm8hlwCSeorvECJYVOyS2ob5ZFWVtmKL3F4YWEFGzTIsF/"
+        update_password: on_create
+        createhome: yes
+        groups: "{{ groups }}"
+        append: yes
+      tags: add_user
+    - name: Force new user to change password at first login
+      command: "chage -d 0 {{ item.name }}"
+      with_items: "{{ users }}" 
+      tags: add_user
+    
+    - name: Add new user as sudoers
+      lineinfile: dest=/etc/sudoers backup=yes state=present regexp="{{ item.regexp }}" insertafter=EOF line="{{ item.line }}"
+      with_items: "{{ name }}"
+      tags: sudo_user
+
+    - name: Add new group as sudoers
+      lineinfile: dest=/etc/sudoers backup=yes state=present regexp="{{ item.regexp }}" insertafter=EOF line="{{ item.line }}"
+      with_items: "{{ name }}"
+      tags: sudo_group
+ 
+    - name: Delete user from sudoers
+      lineinfile: dest=/etc/sudoers state=absent regexp="{{ item.regexp }}" line="{{ item.line }}"
+      with_items: "{{ users }}"
+      tags: sudodel_user
+
+    - name: delete group from sudoers
+      lineinfile: dest=/etc/sudoers state=absent regexp="{{ item.regexp }}" line="{{ item.line }}"
+      with_items: "{{ group }}"
+      tags: sudodel_group
+
+    
+    - name: SSH Key generation for users
+      user:
+        name: "{{ item.name }}"
+        generate_ssh_key: yes
+        ssh_key_bits: 4096
+        ssh_key_file: .ssh/id_rsa
+      with_items: "{{ users }}"
+      tags: ssh_key_generation
+
+    - name: Delete User
+      user:
+        name: "{{ item.name }}"
+        state: absent
+        remove: yes
+      with_items: "{{ users }}"
+      tags: del_user
+
+
+
+
+
+
+
+

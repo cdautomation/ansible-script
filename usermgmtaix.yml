@@ -21,18 +21,6 @@
       with_items: "{{ group }}"
       tags: del_group
 
-
-    - name: Creating encrypted passwd
-      delegate_to: 10.180.25.151
-      command: openssl passwd "{{ item.passwd }}"
-      register: passwd
-      with_items: "{{ users }}"
-      when: ansible_distribution == "AIX"
-      tags: test
-
-    - debug:  
-        var: passwd.stdout_lines
-    
     - name: Add user for Linux
       user:
         name: "{{ item.name }}"

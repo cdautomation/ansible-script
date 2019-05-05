@@ -1,0 +1,23 @@
+---
+- hosts: all
+  connection: paramiko
+  become_user: root
+
+  vars_prompt:
+    - name: "passwd"
+      prompt: "what is the passwd?"
+      private: no
+
+
+
+  tasks:
+    - name: Creating encrypted passwd
+      delegate_to: 10.180.25.151
+      command: openssl passwd "{{ passwd }}"
+      register: passwd
+      when: ansible_distribution == "AIX"
+      tags: test
+
+    - debug: msg="{{ passwd }}"
+      tags: test
+

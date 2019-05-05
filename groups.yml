@@ -1,0 +1,26 @@
+---
+group:
+   - name: test2
+     gid: 3000
+     regexp: '^%test2'
+     line: '%test2 ALL=(ALL) ALL'
+   - name: test3
+     gid: 3100
+     regexp: '^%test3'
+     line: '%test3 ALL=(ALL) ALL'
+
+users:
+   - name: sanu1
+     uid: 2001
+     groups: test2,test3
+     comment: Test User created
+     regexp: '^%sanu'
+     line: '%sanu1 ALL=(ALL) ALL'
+
+   - name: sanu2
+     uid: 2002
+     groups: test2,test3
+     comment: Test User created
+     regexp: '^%sanu'
+     line: '%sanu1 ALL=(ALL) ALL'  
+
